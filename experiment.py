@@ -1,10 +1,8 @@
 """."""
 
-# Experimenting with the pyglet library
 import pyglet
 from pyglet.window import key
-from enum import Enum
-from pyglet.shapes import Rectangle
+from pyglet.math import Vec2
 from dataclasses import dataclass
 
 
@@ -16,16 +14,45 @@ class Velocity:
     y: int
 
 
-class Paddle(pyglet.shapes.Rectangle):
+class PongRect(pyglet.shapes.Rectangle):
     """."""
-
-    paddle_velocity = 6
 
     def __init__(self, *args, **kwargs):
         """."""
         super().__init__(*args, **kwargs)
-        # self.velocity = Velocity(0, 0)
+        self.anchor_x = self.width // 2
+        self.anchor_y = self.height // 2
+
+    def top(self):
+        """."""
+        return self.y + (self.height // 2)
+
+    def bottom(self):
+        """."""
+        return self.y - (self.height // 2)
+
+    def right(self):
+        """."""
+        return self.x + (self.width // 2)
+
+    def left(self):
+        """."""
+        return self.x - (self.width // 2)
+
+
+class Paddle(PongRect):
+    """."""
+
+    paddle_velocity = 6
+
+    def __init__(self, boundtop, boundbot=0, *args, **kwargs):
+        """."""
+        super().__init__(*args, **kwargs)
+        # self.anchor_x = self.width // 2
+        # self.anchor_y = self.height // 2
         self.movedir = 0
+        self.boundtop = boundtop
+        self.boundbot = boundbot
 
     def top_y(self):
         """."""
@@ -35,17 +62,32 @@ class Paddle(pyglet.shapes.Rectangle):
         """."""
         return self.y - self.height // 2
 
-    def move_up(self, toggle):
+    def move_up(self):
         """."""
-        self.movedir = 1 if toggle else 0
+        if self.top_y() <= self.boundtop:
+            self.y += self.paddle_velocity
 
-    def move_down(self, toggle):
+    def move_down(self):
         """."""
-        self.movedir = -1 if toggle else 0
+        if self.bot_y() >= self.boundbot:
+            self.y -= self.paddle_velocity
+
+
+class Ball(PongRect):
+    """."""
+
+    def __init__(self, *args, **kwargs):
+        """."""
+        super().__init__(*args, **kwargs)
+        # The initial velocity goes slowly towards player 1. Maybe the
+        # ball should switch directions to the previous winner?
+        # self.velocity = Velocity(3, 0)
+        self.velocity = Vec2(6, 0)
 
     def move(self):
         """."""
-        self.y += self.movedir * self.paddle_velocity
+        self.x += self.velocity.x
+        self.y += self.velocity.y
 
 
 class Pong(pyglet.window.Window):
@@ -58,10 +100,9 @@ class Pong(pyglet.window.Window):
         self.paddle_height = 150
         self.paddle_width = 25
 
-        Paddle._anchor_x = self.paddle_width // 2
-        Paddle._anchor_y = self.paddle_height // 2
-
         self.player1_paddle = Paddle(
+            boundtop=self.height,
+            boundbot=0,
             x=50,
             y=self.height // 2,
             height=self.paddle_height,
@@ -69,30 +110,46 @@ class Pong(pyglet.window.Window):
         )
 
         self.player2_paddle = Paddle(
+            boundtop=self.height,
+            boundbot=0,
             x=self.width - 50,
             y=self.height // 2,
             height=self.paddle_height,
             width=self.paddle_width
         )
 
+        self.ball_height = 30
+        self.ball_width = 30
+
+        self.ball = Ball(
+            x=self.width // 2,
+            y=self.height // 2,
+            height=self.ball_height,
+            width=self.ball_width
+        )
+
+        self.linevec = pyglet.shapes.Line(
+            x=self.ball.x,
+            y=self.ball.y,
+            x2=self.ball.x + self.ball.velocity.x,
+            y2=self.ball.y + self.ball.velocity.y,
+            width=3
+        )
+
+        self._paddle_symbol = [key.W, key.S,
+                               key.UP, key.DOWN]
+
+        self.pressed = {key.W: False, key.S: False,
+                        key.UP: False, key.DOWN: False}
+        self.symbolevent = {key.W: self.player1_paddle.move_up,
+                            key.S: self.player1_paddle.move_down,
+                            key.UP: self.player2_paddle.move_up,
+                            key.DOWN: self.player2_paddle.move_down}
+
     def on_key_press(self, symbol, modifiers):
         """."""
-        up_events = [key.W, key.UP]
-        # down_events = [key.S, key.DOWN]
-
-        p1_events = [key.W, key.S]
-        p2_events = [key.UP, key.DOWN]
-
-        if symbol in p1_events:
-            if symbol in up_events:
-                self.player1_paddle.move_up(True)
-            else:
-                self.player1_paddle.move_down(True)
-        if symbol in p2_events:
-            if symbol in up_events:
-                self.player2_paddle.move_up(True)
-            else:
-                self.player2_paddle.move_down(True)
+        if symbol in self._paddle_symbol:
+            self.pressed[symbol] = True
 
         if symbol == key.Q:
             print("Pressed: Q")
@@ -101,38 +158,90 @@ class Pong(pyglet.window.Window):
 
     def on_key_release(self, symbol, modifiers):
         """."""
-        up_events = [key.W, key.UP]
-        # down_events = [key.S, key.DOWN]
+        if symbol in self._paddle_symbol:
+            self.pressed[symbol] = False
 
-        p1_events = [key.W, key.S]
-        p2_events = [key.UP, key.DOWN]
+    def left_side(self, r):
+        """Get left side bound of rectangle."""
+        return r.x - (r.width // 2)
 
-        if symbol in p1_events:
-            if symbol in up_events:
-                self.player1_paddle.move_up(False)
-            else:
-                self.player1_paddle.move_down(False)
-        if symbol in p2_events:
-            if symbol in up_events:
-                self.player2_paddle.move_up(False)
-            else:
-                self.player2_paddle.move_down(False)
+    def right_side(self, r):
+        """Get right side bound of rectangle."""
+        return r.x + (r.width // 2)
 
-    def draw_paddles(self, p1: Paddle, p2: Paddle):
+    def collide_goal(self):
         """."""
-        if p1.top_y() <= self.height and p1.bot_y() >= 0:
-            p1.move()
-        if p2.top_y() <= self.height and p2.bot_y() >= 0:
-            p2.move()
-        p1.draw()
-        p2.draw()
+        return (self.ball.left() <= 0 or
+                self.ball.right() >= self.width)
+
+    def collide_table(self):
+        """."""
+        return (self.ball.bottom() <= 0 or
+                self.ball.top() >= self.height)
+
+    def collide_paddle(self, paddle):
+        """."""
+        return (paddle.right() >= self.ball.left() and
+                paddle.left() <= self.ball.right() and
+                paddle.top() >= self.ball.bottom() and
+                paddle.bottom() <= self.ball.top())
+
+    def handle_paddle_collision(self, paddle):
+        """."""
+        if self.collide_paddle(paddle):
+            self.ball.color = (255, 0, 0)
+            # self.ball.velocity.x = -self.ball.velocity.x
+            scale = 1 - abs(self.ball.y - paddle.y) / paddle.height
+            mag = self.ball.velocity.mag
+            self.ball.velocity = self.ball.velocity.rotate(90)
+            self.ball.velocity = self.ball.velocity.lerp(
+                self.ball.velocity.rotate(90),
+                alpha=scale
+            ).from_magnitude(mag)
+        else:
+            self.ball.color = (255, 255, 255)
+
+    def draw_ball(self):
+        """."""
+        self.ball.move()
+
+        if self.ball.x <= self.width // 2:
+            self.handle_paddle_collision(self.player1_paddle)
+        else:
+            self.handle_paddle_collision(self.player2_paddle)
+
+        if self.collide_goal():
+            self.ball.velocity.x = -self.ball.velocity.x
+
+        if self.collide_table():
+            self.ball.velocity = self.ball.velocity.rotate(45)
+
+        self.ball.draw()
+
+    def draw_paddles(self):
+        """."""
+        for symbol, ispressed in self.pressed.items():
+            if ispressed:
+                self.symbolevent[symbol]()
+        self.player1_paddle.draw()
+        self.player2_paddle.draw()
 
     def on_draw(self):
         """."""
         self.clear()
 
-        self.draw_paddles(self.player1_paddle,
-                          self.player2_paddle)
+        # self.collide_paddle()
+        # self.collide_bound()
+
+        self.draw_paddles()
+        self.draw_ball()
+
+        self.linevec.x = self.ball.x
+        self.linevec.y = self.ball.y
+        self.linevec.x2 = self.ball.x + 15*self.ball.velocity.x
+        self.linevec.y2 = self.ball.y + 15*self.ball.velocity.y
+
+        self.linevec.draw()
 
 
 pong = Pong(800, 600)
