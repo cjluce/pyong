@@ -191,13 +191,29 @@ class Pong(pyglet.window.Window):
         if self.collide_paddle(paddle):
             self.ball.color = (255, 0, 0)
             # self.ball.velocity.x = -self.ball.velocity.x
-            scale = 1 - abs(self.ball.y - paddle.y) / paddle.height
+            scale = 1 - (1 * abs(self.ball.y - paddle.y) / (paddle.height // 2))
+            # scale += 0.5
+            print(scale)
             mag = self.ball.velocity.mag
-            self.ball.velocity = self.ball.velocity.rotate(90)
-            self.ball.velocity = self.ball.velocity.lerp(
-                self.ball.velocity.rotate(90),
+            print(f"Speed: {max(1, min(2, mag*(scale+0.5)))}")
+            # self.ball.velocity = self.ball.velocity.rotate(90)
+            # self.ball.velocity.rotate(90),
+            # self.ball.velocity = self.ball.velocity.lerp(
+            #     Vec2(-self.ball.velocity.y,
+            #          self.ball.velocity.x),
+            #     alpha=scale
+            # ).from_magnitude(mag)
+            # self.ball.velocity = self.ball.velocity.reflect(
+            #     Vec2(-self.ball.velocity.y,
+            #          self.ball.velocity.x)
+            # ).from_magnitude(mag*scale)
+            self.ball.velocity = Vec2(0, 1).lerp(
+                Vec2(self.ball.velocity.y,
+                     -self.ball.velocity.x),
                 alpha=scale
-            ).from_magnitude(mag)
+            ).from_magnitude(
+                max(6, min(12, mag*(scale+0.5)))
+            )
         else:
             self.ball.color = (255, 255, 255)
 
@@ -214,7 +230,11 @@ class Pong(pyglet.window.Window):
             self.ball.velocity.x = -self.ball.velocity.x
 
         if self.collide_table():
-            self.ball.velocity = self.ball.velocity.rotate(45)
+            # self.ball.velocity = self.ball.velocity.rotate(45)
+            self.ball.velocity = Vec2(
+                -self.ball.velocity.y,
+                self.ball.velocity.x
+            )
 
         self.ball.draw()
 
@@ -238,8 +258,8 @@ class Pong(pyglet.window.Window):
 
         self.linevec.x = self.ball.x
         self.linevec.y = self.ball.y
-        self.linevec.x2 = self.ball.x + 15*self.ball.velocity.x
-        self.linevec.y2 = self.ball.y + 15*self.ball.velocity.y
+        self.linevec.x2 = self.ball.x - 15*self.ball.velocity.y
+        self.linevec.y2 = self.ball.y + 15*self.ball.velocity.x
 
         self.linevec.draw()
 
